@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
                com[i]= tolower(com[i]);
               }
           }
-//printf(com);
+
        char *PalabraCadena = NULL;
        PalabraCadena = strtok( com, " ");
 if(PalabraCadena!=NULL){
