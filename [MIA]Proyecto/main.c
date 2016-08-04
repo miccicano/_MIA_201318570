@@ -13,12 +13,16 @@ void EliminarDisco(char path[100]);
 //--------------------------------------------------------STRUCTS Y VARIBLES------------------------------------------------------
 //*******************************************************************************************************************************
 
-typedef struct ComandoMKdisk{
+typedef struct ComandoStruc{
     int size;
     char unit[1];
     char path[100];
     char name[100];
-}ComandoMKdisk;
+    char type[1];
+    char fit[2];
+    char del[4];
+    int add;
+}ComandoStruc;
 
 char Comando[1000];
 char *token;
@@ -36,6 +40,8 @@ int DiscoAceptado = 0;//cero es falso
 int DelDisco = 0;
 
 FILE *fichero;
+
+
 //con esto hago el split de comando
 char** str_split(char* a_str, const char a_delim){
     char** resultado = 0;
@@ -81,9 +87,15 @@ void automata(char Comando[300]){
 //________________________________________________________________________________________________________________________EXIT
             if(strcasecmp((*(Token + i)), "exit\n") ==0 )
                 salida=1;
-//________________________________________________________________________________________________________________________MKDISK
+//________________________________________________________________________________________________________________________SALTO DE LINEA
+            if(strcasecmp((*(Token + i)), "\\") ==0 ){}
+
+//________________________________________________________________________________________________________________________COMENTARIO
+            if(strcasecmp((*(Token + i)), "#") ==0 ){}
+
+//________________________________________________________________________________________________________________________MK-DISK
             if(strcasecmp((*(Token + i)), "mkdisk") ==0 ){
-                ComandoMKdisk * MKDISK = malloc(sizeof(ComandoMKdisk));
+                ComandoStruc * MKDISK = malloc(sizeof(ComandoStruc));
                 char *eme = "m";
                 strcpy(MKDISK->unit,eme);
 
@@ -133,7 +145,7 @@ void automata(char Comando[300]){
                         char *spl;
                         spl = strtok((*(Token + jadd)), "::");
                         spl = strtok(NULL,"::");
-                        char caracter[1]="\'";
+                        char caracter[1]="\"";
                         char Resultante[100];
                         int i = 0;
                         int j = 0;
@@ -161,13 +173,13 @@ void automata(char Comando[300]){
 
 
             }
-//________________________________________________________________________________________________________________________RMDISK
+//________________________________________________________________________________________________________________________RM-DISK
             if(strcasecmp((*(Token + i)), "rmdisk") ==0 ){
-                ComandoMKdisk * RMDISK = malloc(sizeof(ComandoMKdisk));
+                ComandoStruc * RMDISK = malloc(sizeof(ComandoStruc));
                 int jadd;
                 for (jadd = (i+1); *(Token + jadd); jadd++){
                     if (strncasecmp((*(Token + jadd)), "-path", 5) == 0){//****PATH
-                        EliminarDisco==1;
+                        DelDisco=1;
                         char *spl;
                         spl = strtok((*(Token + jadd)), "::");
                         spl = strtok(NULL,"::");
@@ -191,7 +203,103 @@ void automata(char Comando[300]){
                     EliminarDisco(RMDISK->path);
                 }
             }
-        }
+//________________________________________________________________________________________________________________________F-DISK
+            if(strcasecmp((*(Token + i)), "fdisk") ==0 ){
+                ComandoStruc * FDISK = malloc(sizeof(ComandoStruc));
+                char *ca = "K";
+                strcpy(FDISK->unit,ca);
+                char *pe ="P";
+                strcpy(FDISK->type,pe);
+                char *wf="WF";
+                strcpy(FDISK->fit,wf);
+
+                int jadd;
+                for (jadd = (i+1); *(Token + jadd); jadd++){
+                    if (strncasecmp((*(Token + jadd)), "-size", 5) == 0){//****SIZE
+                        int tam=*(Token+jadd);
+                        int tama=Getint(tam);
+                        if (tama<=0)
+                            printf("Tamaño de disco incorrecto");
+                        else{
+                            FDISK->size = tama;
+                            DiscoAceptado=1;//uno es verdadero
+                        }
+                    }else if (strncasecmp((*(Token + jadd)), "+unit", 5) == 0){//****UNIT
+                        char * com;
+                        com = strtok((*(Token + jadd)),"::");
+                        com = strtok(NULL, "::");
+                        strcpy(FDISK->unit,com);
+                    }else if (strncasecmp((*(Token + jadd)), "-path", 5) == 0){//****PATH
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        //printf("%s",spl);
+                        char caracter[1]="\"";
+                        char Resultante[100];
+                        int i = 0;
+                        int j = 0;
+                        while (spl[i] != '\0')
+                        {
+                            if (caracter[0] != spl[i])
+                            {
+                                Resultante[j] = spl[i];
+                                j++;
+                            }
+                            i++;
+                        }
+                        Resultante[j] = '\0';
+                        strcpy(FDISK->path, Resultante);
+                    }else if (strncasecmp((*(Token + jadd)), "+type", 5) == 0){//****TYPE
+                        char * com;
+                        com = strtok((*(Token + jadd)),"::");
+                        com = strtok(NULL, "::");
+                        strcpy(FDISK->type,com);
+
+                    }else if (strncasecmp((*(Token + jadd)), "+fit", 4) == 0){//****FIT
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        //printf("%s",spl);
+                        strcpy(FDISK->fit, spl);
+
+                    }else if (strncasecmp((*(Token + jadd)), "+delete", 7) == 0){//****DELETE
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        //printf("%s",spl);
+                        strcpy(FDISK->del, spl);
+
+                    }else if (strncasecmp((*(Token + jadd)), "-name", 5) == 0){//****NAME
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        char caracter[1]="\"";
+                        char Resultante[100];
+                        int i = 0;
+                        int j = 0;
+                        while (spl[i] != '\0')
+                        {
+                            if (caracter[0] != spl[i])
+                            {
+                                Resultante[j] = spl[i];
+                                j++;
+                            }
+                            i++;
+                        }
+                        Resultante[j] = '\0';
+                        strcpy(FDISK->name, Resultante);
+                    }else if (strncasecmp((*(Token + jadd)), "+add", 4) == 0){//****ADD
+                        int tam=*(Token+jadd);
+                        int tama=Getint(tam);
+                            FDISK->size = tama;
+                            //uno es verdadero
+                    }
+                    printf("size -> %i \n", FDISK->size);
+                    printf("unit -> %s \n", &FDISK->unit);
+                    printf("path -> %s \n", FDISK->path);
+                    printf("name -> %s \n", FDISK->name);
+                }
+        }}
     }
 }
 
@@ -231,7 +339,7 @@ char SinComilla (char frase[100]){
     }
     Resultante[j] = '\0';
     printf("%s",Resultante);
-    return Resultante;
+    return *Resultante;
 }
 
 //*******************************************************************************************************************************
@@ -258,11 +366,29 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
             printf(" %d Kb\n",tam);
         }
         else
-            printf(">> ERROR:Unidad erronea %c\n",unidad );
+            printf(">> ERROR:Unidad erronea %s\n",unidad );
 
         //crear el archivo binario
         char pathCompleta[100];
         strcpy(pathCompleta,strcat(path,name));
+
+        char caracter[1]="\n";
+        char Resultante[100];
+        int i = 0;
+        int j = 0;
+        while (pathCompleta[i] != '\0')
+        {
+            if (caracter[0] != pathCompleta[i])
+            {
+                Resultante[j] = pathCompleta[i];
+                j++;
+            }
+            i++;
+        }
+        Resultante[j] = '\0';
+
+        strcpy(pathCompleta, Resultante);
+
 
         char SizeArch[tam];
         memset(SizeArch, 0, sizeof SizeArch);
@@ -275,12 +401,12 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
             char sys[10] = "mkdir -p ";
             strcat(sys,path);
             system(sys);
-            fichero = fopen (pathCompleta, "w+b");
+            fichero = fopen (pathCompleta, "r+b");
             if (fichero!=NULL){
                 fwrite(SizeArch,sizeof(SizeArch),1,fichero);
                 fclose ( fichero );
             }
-           // printf("no pos no existe, %s", sys);
+            printf("no pos no existe, %s", sys);
         }
     }
     else
@@ -292,11 +418,32 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
 //____________________________________________________________________________________________________________________ELIMINAR DISCO
 void  EliminarDisco(char path[100]){
     printf("%s",path);
-    fichero=fopen(path,"b");
-    if(fichero!=NULL){
-        char sys[10] = "rm ";
-        strcat(sys,path);
-        system(sys);
+    if(DelDisco==1){
+        char caracter[1]="\n";
+        char Resultante[100];
+        int i = 0;
+        int j = 0;
+        while (path[i] != '\0')
+        {
+            if (caracter[0] != path[i])
+            {
+                Resultante[j] = path[i];
+                j++;
+            }
+            i++;
+        }
+        Resultante[j] = '\0';
+
+        strcpy(path, Resultante);
+
+
+        fichero=fopen(path,"r+b");
+        if(fichero!=NULL){
+            char sys[10] = "rm ";
+            strcat(sys,path);
+            system(sys);
+        }else
+            printf(">>ERROR: El disco ingresado no existe.");
     }else
         printf(">>ERROR: El disco ingresado no existe.");
 }
