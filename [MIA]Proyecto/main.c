@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 
 char** str_split(char* a_str, const char a_delim);
 void automata(char Comando[300]);
@@ -15,21 +16,51 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
 
 typedef struct ComandoMKdisk{
     int size;
-    char unit[1];
+    char unit[2];
     char path[100];
-    char name[100];
+    char name[20];
 }ComandoMKdisk;
 
-typedef struct Fdisk{
+typedef struct ComandoFdisk{
     int size;
-    char unit[1];
+    char unit[2];
     char path[100];
-    char name[100];
-    char type[1];
-    char fit[2];
+    char name[10];
+    char type[2];
+    char fit[3];
     char del[4];
     int add;
-}Fdisk;
+}ComandoFdisk;
+
+typedef struct FdiskParticion{
+    char pStatus;
+    char pType;
+    char pFit;
+    unsigned int pStart;
+    unsigned int pSize;
+    char pName[20];
+    int pId;
+}FdiskParticion;
+
+typedef struct MasterBootRecord{
+    unsigned int mbrSize;
+    char mbrTimeCreation[25];
+    int mbrSignature;
+    FdiskParticion mbrPartition[4];
+}MasterBootRecord;
+
+typedef struct ExtendedBootRecord{
+    char ebrStatus;
+    char ebrFit;
+    unsigned int ebrStart;
+    unsigned int ebrSize;
+    char ebrName[20];
+    unsigned int ebrNext;
+}ExtendedBootRecord;
+
+typedef struct clear{
+    char space[1024];
+}clear;
 
 char Comando[1000];
 int salida=0;
@@ -42,7 +73,7 @@ int DiscoAceptadoname=0;
 int DiscoAceptadopath=0;
 //permisos para rmdisk
 int DelDisco = 0;
-//permisos para fdisk
+//permisos para ComandoFdisk
 int FperAdd=0;
 int FperPath=0;
 int FperName=0;
@@ -50,7 +81,7 @@ int FperDel=0;
 int FperFit=0;
 int FperSize=0;
 
-FILE *fichero;
+FILE *file;
 
 
 //con esto hago el split de comando
@@ -177,7 +208,7 @@ void automata(char Comando[300]){
 
                     // printf("token = [%s] \n", *(Token + r));
                 }
-                /*      printf("size -> %d \n", MKDISK->size);
+                     /* printf("size -> %d \n", MKDISK->size);
                 printf("unit -> %s \n", &MKDISK->unit);
                 printf("path -> %s \n", MKDISK->path);
                 printf("name -> %s \n", MKDISK->name);*/
@@ -218,14 +249,13 @@ void automata(char Comando[300]){
             }
 //________________________________________________________________________________________________________________________F-DISK
             if(strcasecmp((*(Token + i)), "fdisk") ==0 ){
-                Fdisk * FDISK = malloc(sizeof(Fdisk));
-                char *ca = "K";
+                ComandoFdisk * FDISK = malloc(sizeof(ComandoFdisk));
+                char *ca = "m";
                 strcpy(FDISK->unit,ca);
-                char *pe ="P";
-                strcpy(FDISK->type,pe);
                 char *wf="WF";
                 strcpy(FDISK->fit,wf);
-
+                char *pe ="P";
+                strcpy(FDISK->type,pe);
                 int jadd;
                 for (jadd = (i+1); *(Token + jadd); jadd++){
                     if (strncasecmp((*(Token + jadd)), "-size", 5) == 0){//****SIZE
@@ -262,17 +292,14 @@ void automata(char Comando[300]){
                         }
 
                         Resultante[j] = '\0';
-                        printf("*************unit -> %s \n", &FDISK->unit);
                         strcpy(FDISK->path, Resultante);
-                        printf("*************unit -> %s \n", &FDISK->unit);
                         FperPath=1;
-                        printf("*************unit -> %s \n", &FDISK->unit);
                     }else if (strncasecmp((*(Token + jadd)), "+type", 5) == 0){//****TYPE
                         char * com;
                         com = strtok((*(Token + jadd)),"::");
                         com = strtok(NULL, "::");
                         strcpy(FDISK->type,com);
-
+                             printf("type -> %s \n", FDISK->type);
                     }else if (strncasecmp((*(Token + jadd)), "+fit", 4) == 0){//****FIT
                         char *spl;
                         spl = strtok((*(Token + jadd)), "::");
@@ -310,8 +337,8 @@ void automata(char Comando[300]){
                         strcpy(FDISK->name, Resultante);
                         FperName=1;
                     }else if (strncasecmp((*(Token + jadd)), "+add", 4) == 0){//****ADD
-                        int tam=*(Token+jadd);
-                        int tama=Getint(tam);
+                       // int tam=*(Token+jadd);
+                        int tama=Getint(*(Token+jadd));
                             FDISK->size = tama;
                             FperAdd=1;//uno es verdadero
                     }
@@ -331,8 +358,8 @@ void automata(char Comando[300]){
                 }else if((FperAdd==0 && FperDel==1)){//~~~~~~~~~~DELETE
                     printf("Entro al delete \n");
                 }else if(FperPath==1 && FperName==1 && FperSize==1){//~~~~~~~~~~CREAR PARTICION
-                    printf("Entro a crear particion. \n");
                     CrearParticion(FDISK->size, FDISK->unit,FDISK->path,FDISK->name,FDISK->type,FDISK->fit);
+                    printf("<<Salio de crear particion>> \n");
                 }else if((FperAdd==1 && FperDel==1) || (FperAdd==0 && FperDel==1) ||(FperAdd==1 && FperDel==0)){//~~~~~~~~~~ERROR
                     printf(">>ERROR: No se puede eliminar o agregar en un mismo comando. \n");
                 }
@@ -389,64 +416,90 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
     printf("%i \n", tam);
     printf("%s \n",unidad);
     printf("%s \n",path);
-    printf("%s ", name);
-    printf("*****************\n");
-    char path2[50];
-    strcpy(path2,path);
+    printf("%s \n", name);
+    printf("*****************\n\n\n");
 
+    MasterBootRecord mbr;
+    mbr.mbrSize=tam;
+    timer_t tiempo = time(0);
+    struct tm *tlocal = localtime(&tiempo);
+    char output[128];
+    strftime(output,128,"%d/%m/%y %H:%M:%S",tlocal);
+    printf(">>AVISO: Hora creación: %s\n",output);
+    int id=path;
+    int signature=rand() % 100;
+
+    strcpy(mbr.mbrTimeCreation,output);
+    int size=0;
+
+    //verificar la unidad
     if (DiscoAceptado==1 && DiscoAceptadoname==1 && DiscoAceptadopath==1)/*uno es aceptado*/{
         if (strncasecmp(unidad, "m",1)==0){
-            tam=tam*1024*1024;
-            printf(" %d Mb\n",tam);
+            size=tam*(1024*1024);
+            printf(">>AVISO: Tamaño de disco: %d Mb\n\n",size);
         }
         else if (strncasecmp(unidad, "K",1)==0){
-            tam=tam*1024;
-            printf(" %d Kb\n",tam);
+            size=tam*1024;
+            printf(">>AVISO: Tamaño de disco: %d Kb\n\n",size);
         }
         else
             printf(">> ERROR:Unidad erronea %s\n",unidad );
+
+
+        //comprobar carpeta y la crea por si no existe
+        file = fopen (path, "r+b");
+        if (file==NULL){
+            char sys[10] = "mkdir -p ";
+            strcat(sys,path);
+            system(sys);
+            printf(">>Carpeta Creada en la dirección:  %s", path);
+        }
+
 
         //crear el archivo binario
         char pathCompleta[100];
         strcpy(pathCompleta,strcat(path,name));
 
-        char caracter[1]="\n";
-        char Resultante[100];
-        int i = 0;
-        int j = 0;
-        while (pathCompleta[i] != '\0')
-        {
-            if (caracter[0] != pathCompleta[i])
-            {
-                Resultante[j] = pathCompleta[i];
-                j++;
-            }
-            i++;
-        }
-        Resultante[j] = '\0';
 
-        strcpy(pathCompleta, Resultante);
-
-
-        char SizeArch[tam];
+        char SizeArch[size];
         memset(SizeArch, 0, sizeof SizeArch);
 
-        fichero = fopen (pathCompleta, "w+b" );
-        if (fichero!=NULL) {
-            fwrite(SizeArch,sizeof(SizeArch),1,fichero);
-            fclose ( fichero );
+        file = fopen (pathCompleta, "w+b" );
+        if (file!=NULL) {
+            //escribo en el mbr
+            strcpy(mbr.mbrTimeCreation,output);
+            mbr.mbrSize=size;
+            mbr.mbrSignature=signature;
+            //escribo las particiones
+            int i;
+            for(i=0;i<4;i++){
+            mbr.mbrPartition[i].pStart=0;
+            mbr.mbrPartition[i].pStatus='\0';
+            mbr.mbrPartition[i].pFit='\0';
+            mbr.mbrPartition[i].pType='\0';
+            mbr.mbrPartition[i].pSize=0;
+            mbr.mbrPartition[i].pId=0;
+            int x;
+            for(x=0;x<15;x++){mbr.mbrPartition[i].pName[x]='\0';}
+            }
+
+            fwrite(SizeArch,sizeof(SizeArch),1,file);
+            fseek(file,0,SEEK_SET);
+            fwrite(&mbr,sizeof(MasterBootRecord),1,file);
+            fclose ( file );
             printf(">>Archivo creado en la dirección:  %s", pathCompleta);
         }else{
-            char sys[10] = "mkdir -p ";
-            strcat(sys,path);
-            system(sys);
-            fichero = fopen (pathCompleta, "r+b");
-            if (fichero!=NULL){
-                fwrite(SizeArch,sizeof(SizeArch),1,fichero);
-                fclose ( fichero );
-            }
-            printf(">>Archivo creado en la dirección:  %s", pathCompleta);
+            printf(">>ERROR: Fallo al crear disco en ruta:  %s", pathCompleta);
         }
+
+        //verifica si escribio correcto el mbr
+        file=fopen(pathCompleta,"r+");
+        MasterBootRecord temporal;
+        fread(&temporal,sizeof(MasterBootRecord),1,file);
+        printf("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n>>Signature %d \n>>tamaño %d \n>>Fecha %s",temporal.mbrSignature,temporal.mbrSize, temporal.mbrTimeCreation);
+        printf("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        fclose(file);
+
 
         DiscoAceptado=0;
         DiscoAceptadoname=0;
@@ -466,8 +519,7 @@ void  EliminarDisco(char path[100]){
         char Resultante[100];
         int i = 0;
         int j = 0;
-        while (path[i] != '\0')
-        {
+        while (path[i] != '\0'){
             if (caracter[0] != path[i])
             {
                 Resultante[j] = path[i];
@@ -476,12 +528,11 @@ void  EliminarDisco(char path[100]){
             i++;
         }
         Resultante[j] = '\0';
-
         strcpy(path, Resultante);
 
 
-        fichero=fopen(path,"r+b");
-        if(fichero!=NULL){
+        file=fopen(path,"r+b");
+        if(file!=NULL){
             char sys[10] = "rm ";
             strcat(sys,path);
             system(sys);
@@ -493,6 +544,7 @@ void  EliminarDisco(char path[100]){
 
 //____________________________________________________________________________________________________________________CREAR PARTICION
 void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], char type[1], char fit[2]){
+    printf("\n*****************************\n");
     printf(">>Dato para crear partición. \n");
     printf("size -> %i \n", tam);
     printf("unit -> %s \n", unidad);
@@ -500,18 +552,183 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
     printf("name -> %s \n", name);
     printf("type -> %s \n", type);
     printf("fit -> %s \n", fit);
-    printf("*****************************\n");
+    printf("*****************************\n\n");
 
+    int equalname = 0;
+    int primarias=0;
+    int extendidas=0;
+    int logicas = 0;
+    int AuxPrimarias=0;
+    int AuxExtendidas=0;
+    int TamAceptado =1;
+
+    //verifico la unidad del tamaño
+    int size=0;
     if (strncasecmp(unidad, "m",1)==0){
-         tam=tam*1024*1024;
-        printf(" %d Megabytes\n",tam);
+        size=tam*1024*1024;
+        printf(" %d Megabytes\n",size);
     }else if (strncasecmp(unidad, "b",1)==0){
-        printf(" %d Bytes\n",tam);
+        size=tam;
+        printf(" %d Bytes\n",size);
     }else if (strncasecmp(unidad, "k",1)==0){
-        tam=tam*1024;
-        printf(" %d kiloBytes\n",tam);
+        size=tam*1024;
+        printf(" %d kiloBytes\n",size);
     }else
-         printf(">> ERROR:Unidad erronea %s\n",unidad);
+        printf(">> ERROR:Unidad erronea %s\n",unidad);
+
+    if(size<(2*1024*1024)){
+        printf(">>ERROR: Tamaño minimo para crear partición es de 2MB.");
+        TamAceptado=0;
+    }
+
+
+    file = fopen (path, "rb+" );
+    if (file!=NULL) {
+        //aca empiezan validaciones sobre el disco
+    }else
+        printf(">>ERROR: El disco seleccionado no existe");
+
+
+
+
+
+    FILE* file2= fopen(path, "rb+");
+
+    if(file2==NULL){
+        printf(">>ERROR: Disco inexistente. %s",path);
+    }else/*el disco existe*/{
+        MasterBootRecord LecturaMBR;
+        ExtendedBootRecord ebr;
+        fread(&LecturaMBR, sizeof(MasterBootRecord), 1, file2);
+
+        printf("\n\n*****************************\n");
+        printf(">>AVISO::Datos del Disco\n");
+        printf("Signature %i \n",LecturaMBR.mbrSignature);
+        printf("Fecha Creación %s \n", LecturaMBR.mbrTimeCreation);
+        printf("Tamaño %i\n",LecturaMBR.mbrSize);
+        printf("\n\n*****************************\n\n");
+
+        printf(">>AVISO::Datos de Particiones\n");
+        //obtener las particiones primarias
+        int z=0;
+        for(z=0;z<4;z++){
+            int k=0;
+            int l=0;
+            while(name[k]!=NULL){
+                if(LecturaMBR.mbrPartition[z].pName[k]==name[k]){
+                    l++;
+                }
+                k++;
+            }
+            if(l==k && LecturaMBR.mbrPartition[z].pStatus!='0'){// si las coincidencias son iguales y el status 0
+                equalname=1;
+                printf("\nERROR: Coincidencia de nombres.  %i \n\n",equalname);
+            }
+
+            printf("Bit Inicial: %i \n",LecturaMBR.mbrPartition[z].pStart);
+            printf("Nombre: %s \n",LecturaMBR.mbrPartition[z].pName);
+            printf("Tipo Estado: %c \n",LecturaMBR.mbrPartition[z].pStatus);
+            printf("Tipo Particion: %c \n",LecturaMBR.mbrPartition[z].pType);
+            printf("---------------------------------------------------------\n");
+
+            if(LecturaMBR.mbrPartition[z].pType=='p'||LecturaMBR.mbrPartition[z].pType=='P'){//si el tipo es primaria
+                primarias++;
+            }
+            if(LecturaMBR.mbrPartition[z].pType=='e'||LecturaMBR.mbrPartition[z].pType=='E'){//si el tipo es extendida
+                printf("------------INICIALMENTE EXTENDIDAS---------------------\n");
+                extendidas++;
+                /*   ExtendedBootRecord mostrar;
+                           fseek(file2,LecturaMBR.mbrPartition[z].pStart,SEEK_SET); //escribir el bit ebr inicial
+                           fread(&mostrar, sizeof(ExtendedBootRecord), 1, file2);
+                           printf("Inicio EBR: %i \n",mostrar.ebrStart);
+                           printf("Siguiente ebr: %i \n",mostrar.ebrNext);
+                           printf("Estado ebr: %c \n",mostrar.ebrStatus);*/
+            }
+            /* printf("Tipo De Ajuste: %c \n",LecturaMBR.mbrPartition[z].pFit);
+                           printf("Tamaño Particion %i \n", LecturaMBR.mbrPartition[z].pSize);*/
+        }//fin de Recorrido de PArticiones
+
+
+
+
+        if(TamAceptado==1){//Si el tamaño de la particion es =>2MB
+            int sizeRestante=0;
+            int espaciolibre =0;
+            int d;
+            for (d=0;d<=3;d++) {
+
+                sizeRestante+=LecturaMBR.mbrPartition[d].pSize;
+            }
+            espaciolibre = LecturaMBR.mbrSize-sizeRestante-sizeof(MasterBootRecord);
+            printf("Tamaño disponible para usar [%d]\n",espaciolibre);
+            int start;
+
+            //conteo de particiones
+            for (d=0;d<=3;d++) {
+                char *auxType= (LecturaMBR.mbrPartition[d].pType);
+                printf("%d\n",auxType);
+                if (auxType=='p'){
+                    primarias++;
+                    //     estadoprimaria=1;
+                }else if (auxType=='e') {
+                    extendidas++;
+                    //   estadoextendida=1;
+
+                } else if (auxType=='l') {
+                    logicas=1;
+
+                }else {printf("Error en Type\n");}
+
+            }
+            printf("ParticioLibres %d, ParticioPrima %d, ParticionesExt %d\n",primarias,extendidas,logicas);
+
+            int cantidadpuesta = 0;
+
+ //__________________________________________________________________________________________________________________________PARTICIÓN PRIMARIA
+            if (strncasecmp(type, "p",1)==0){
+                printf("<<ENTRO A PARTICION PRIMARIA>>\n\n");
+                printf("///////////////////////////////\\\\\\\\\\\\\\\\\\\\\\\ %d\n", primarias);
+                if (primarias==4){
+                    printf(">>ERROR: Ya hay cuatro particiones primarias creadas, no puede crear más.");
+                }else{
+                    if(size<=espaciolibre){//verifica si el espacio disponible es suficiente
+                        printf("//////////////////////////////////////////////////////////////////// %d", primarias);
+                        int p;
+                        for ( p=0;p<4;p++) {
+                            //busca las particiones
+                            int sizze=LecturaMBR.mbrPartition[p].pSize;
+                            if (sizze==0){
+
+                                LecturaMBR.mbrPartition[p].pStatus='A';
+                                LecturaMBR.mbrPartition[p].pType=*type;
+                                LecturaMBR.mbrPartition[p].pFit=*fit;
+                                int u;
+                                for ( u=0;u<4;u++){
+                                    if (LecturaMBR.mbrPartition[u].pSize>0){
+                                        cantidadpuesta=LecturaMBR.mbrPartition[u].pSize+cantidadpuesta;
+                                    }else {printf("Particion vacia [%d]\n",u);}
+
+                                }
+
+                                start=sizeof(MasterBootRecord)+cantidadpuesta +1;
+                                LecturaMBR.mbrPartition[p].pStart=start;
+                                LecturaMBR.mbrPartition[p].pSize=espaciolibre;
+                                strcpy(LecturaMBR.mbrPartition[p].pName,name);
+                                printf(">>AVISO: Partición creada en la rut: %s\n",path);
+                                break;
+                            }else
+                                printf(">>ERROR: No hay espacio disponible para crear partición.");
+                        }
+                        fseek(file2,0,SEEK_SET);
+                        fwrite(&LecturaMBR,sizeof(MasterBootRecord),1,file2);
+                        fclose(file2);
+                    }
+                }
+
+            }//termina particion primaria
+        }
+    }
+
 }
 
 //*******************************************************************************************************************************
@@ -523,7 +740,8 @@ int main()
     while (salida==0){
         printf("\n ***Ingresar Comando***\n");
         fgets(Comando,100,stdin);
-
+   //  strcpy(Comando,"mkdisk -size::7 -path::\"/home/mitchel/Escritorio/prueba/\" -name::\"Disco1.dsk\"");
+     //  strcpy(Comando,"fdisk -size::2 +unit::M -path::\"/home/mitchel/Escritorio/prueba/Disco1.dsk\" -name::\"Particion1\" +type::P");
         char caracter[1]="\n";
         char Resultante[100];
         int i = 0;
