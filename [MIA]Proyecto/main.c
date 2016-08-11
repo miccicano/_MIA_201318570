@@ -10,6 +10,8 @@ char SinComilla (char frase[100]);
 void CrearDisco(int tam, char unidad[1], char path[100], char name[100]);
 void EliminarDisco(char path[100]);
 void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], char type[1], char fit[2]);
+void  EliminarParticion(char path[100], char name[100], char type[1]);
+void ejecutarexec(char path[50]);
 //*******************************************************************************************************************************
 //--------------------------------------------------------STRUCTS Y VARIBLES------------------------------------------------------
 //*******************************************************************************************************************************
@@ -66,6 +68,7 @@ char Comando[1000];
 int salida=0;
 
 char** Token;
+char** TokenC;
 char * com;
 //permisos para mkdisk
 int DiscoAceptado = 0;
@@ -80,7 +83,8 @@ int FperName=0;
 int FperDel=0;
 int FperFit=0;
 int FperSize=0;
-
+//permisos para exec
+int ex =0;
 FILE *file;
 
 
@@ -134,6 +138,40 @@ void automata(char Comando[300]){
 
 //________________________________________________________________________________________________________________________COMENTARIO
             if(strcasecmp((*(Token + i)), "#") ==0 ){}
+//________________________________________________________________________________________________________________________EXEC
+            if(strcasecmp((*(Token + i)), "exec") ==0 ){
+                char path[50];
+                int jadd;
+                for (jadd = (i+1); *(Token + jadd); jadd++){
+                if (strncasecmp((*(Token + jadd)), "-path", 5) == 0){//****PATH
+                    char *spl;
+                    spl = strtok((*(Token + jadd)), "::");
+                    spl = strtok(NULL,"::");
+                    //printf("%s",spl);
+                    char caracter[1]="\"";
+                    char Resultante[100];
+                    int i = 0;
+                    int j = 0;
+                    while (spl[i] != '\0')
+                    {
+                        if (caracter[0] != spl[i])
+                        {
+                            Resultante[j] = spl[i];
+                            j++;
+                        }
+                        i++;
+                    }
+                    Resultante[j] = '\0';
+                    strcpy(path, Resultante);
+                    ex=1;
+                }
+                }
+                if(ex==1){
+                    ejecutarexec(path);
+                    printf("<<SALIO DE EXEC>>>\n");
+                }else
+                    printf(">>ERROR: Debe ingresar una dirección valida.\n");
+            }
 
 //________________________________________________________________________________________________________________________MK-DISK
             if(strcasecmp((*(Token + i)), "mkdisk") ==0 ){
@@ -506,7 +544,7 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
         MasterBootRecord temporal;
         fread(&temporal,sizeof(MasterBootRecord),1,file);
         printf("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n>>Signature %d \n>>tamaño %d \n>>Fecha %s",temporal.mbrSignature,temporal.mbrSize, temporal.mbrTimeCreation);
-        printf("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        printf("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
         fclose(file);
 
 
@@ -897,6 +935,49 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
 
 }
 
+//____________________________________________________________________________________________________________________ELIMINAR PARTICION
+void  EliminarParticion(char path[100], char name[100], char type[1]){
+    printf("\n*****************************\n");
+    printf(">>Dato para eliminar partición. \n");
+    printf("path -> %s \n", path);
+    printf("name -> %s \n", name);
+    printf("type -> %s \n", type);
+    printf("*****************************\n\n");
+
+    FILE *delfile = fopen(path,"rb+");
+    if(delfile!=NULL){
+   //acciones para eliminar particion
+    }else
+        printf(">>ERROR: No existe ruta del disco.\n");
+}
+
+//*******************************************************************************************************************************
+//---------------------------------------------------METODOS PARA EJECUTAR COMANDOS----------------------------------------------
+//*******************************************************************************************************************************
+
+void ejecutarexec(char path[50]){
+    printf("<<ENTRO A EXEC>>>\n");
+    char comanditos[300];
+    FILE *execfile = fopen(path,"r");
+    if (execfile!=NULL){
+        while(feof(execfile)==0){
+        fgets(comanditos,300,execfile);
+            TokenC = str_split(comanditos, '\n');
+            if(TokenC){
+                int i;
+                for (i = 0; *(TokenC + i); i++){
+                    printf("token=[%s]\n", *(TokenC + i));
+                    char com[100];
+                    automata(*(TokenC+i));
+                }
+            }
+        }
+        strcpy(Token,"");
+    }else
+        printf(">>ERROR: Dirección de archivo incorrecta.\n");
+
+}
+
 //*******************************************************************************************************************************
 //-----------------------------------------------------------MAIN----------------------------------------------------------------
 //*******************************************************************************************************************************
@@ -908,6 +989,7 @@ int main()
         fgets(Comando,100,stdin);
    // strcpy(Comando,"mkdisk -size::15 -path::\"/home/mitchel/Escritorio/prueba/\" -name::\"Disco1.dsk\"");
      //  strcpy(Comando,"fdisk -size::2 +unit::M -path::\"/home/mitchel/Escritorio/prueba/Disco1.dsk\" -name::\"Particion1\" +type::P");
+        strcpy(Comando,"exec -path::\"/home/mitchel/Escritorio/Comandos.sh\"");
         char caracter[1]="\n";
         char Resultante[100];
         int i = 0;
