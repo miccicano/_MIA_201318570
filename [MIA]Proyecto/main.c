@@ -452,7 +452,7 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
             char sys[10] = "mkdir -p ";
             strcat(sys,path);
             system(sys);
-            printf(">>Carpeta Creada en la dirección:  %s", path);
+            printf(">>Carpeta Creada en la dirección:  %s \n", path);
         }
 
 
@@ -461,17 +461,26 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
         strcpy(pathCompleta,strcat(path,name));
 
 
-        char SizeArch[size];
-        memset(SizeArch, 0, sizeof SizeArch);
+
+
 
         file = fopen (pathCompleta, "w+b" );
         if (file!=NULL) {
+            char SizeArch[3]="\0";
+          // memset(SizeArch, 0, sizeof SizeArch);
+           int i;
+           for(i=0;i<size;i++){
+               fseek(file,i,SEEK_SET);
+               fwrite(SizeArch,1,sizeof(SizeArch),file);
+
+           }
+
             //escribo en el mbr
             strcpy(mbr.mbrTimeCreation,output);
             mbr.mbrSize=size;
             mbr.mbrSignature=signature;
             //escribo las particiones
-            int i;
+
             for(i=0;i<4;i++){
             mbr.mbrPartition[i].pStart=0;
             mbr.mbrPartition[i].pStatus='\0';
@@ -483,7 +492,7 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
             for(x=0;x<15;x++){mbr.mbrPartition[i].pName[x]='\0';}
             }
 
-            fwrite(SizeArch,sizeof(SizeArch),1,file);
+           // fwrite(SizeArch,sizeof(SizeArch),1,file);
             fseek(file,0,SEEK_SET);
             fwrite(&mbr,sizeof(MasterBootRecord),1,file);
             fclose ( file );
@@ -577,7 +586,7 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
         printf(">> ERROR:Unidad erronea %s\n",unidad);
 
     if(size<(2*1024*1024)){
-        printf(">>ERROR: Tamaño minimo para crear partición es de 2MB.");
+        printf(">>ERROR: Tamaño minimo para crear partición es de 2MB.\n");
         TamAceptado=0;
     }
 
@@ -586,16 +595,13 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
     if (file!=NULL) {
         //aca empiezan validaciones sobre el disco
     }else
-        printf(">>ERROR: El disco seleccionado no existe");
-
-
-
+        printf(">>ERROR: El disco seleccionado no existe \n");
 
 
     FILE* file2= fopen(path, "rb+");
 
     if(file2==NULL){
-        printf(">>ERROR: Disco inexistente. %s",path);
+        printf(">>ERROR: Disco inexistente. %s\n",path);
     }else/*el disco existe*/{
         MasterBootRecord LecturaMBR;
         ExtendedBootRecord ebr;
@@ -625,27 +631,12 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
                 printf("\nERROR: Coincidencia de nombres.  %i \n\n",equalname);
             }
 
-            printf("Bit Inicial: %i \n",LecturaMBR.mbrPartition[z].pStart);
-            printf("Nombre: %s \n",LecturaMBR.mbrPartition[z].pName);
-            printf("Tipo Estado: %c \n",LecturaMBR.mbrPartition[z].pStatus);
-            printf("Tipo Particion: %c \n",LecturaMBR.mbrPartition[z].pType);
-            printf("---------------------------------------------------------\n");
-
             if(LecturaMBR.mbrPartition[z].pType=='p'||LecturaMBR.mbrPartition[z].pType=='P'){//si el tipo es primaria
                 primarias++;
             }
             if(LecturaMBR.mbrPartition[z].pType=='e'||LecturaMBR.mbrPartition[z].pType=='E'){//si el tipo es extendida
-                printf("------------INICIALMENTE EXTENDIDAS---------------------\n");
                 extendidas++;
-                /*   ExtendedBootRecord mostrar;
-                           fseek(file2,LecturaMBR.mbrPartition[z].pStart,SEEK_SET); //escribir el bit ebr inicial
-                           fread(&mostrar, sizeof(ExtendedBootRecord), 1, file2);
-                           printf("Inicio EBR: %i \n",mostrar.ebrStart);
-                           printf("Siguiente ebr: %i \n",mostrar.ebrNext);
-                           printf("Estado ebr: %c \n",mostrar.ebrStatus);*/
             }
-            /* printf("Tipo De Ajuste: %c \n",LecturaMBR.mbrPartition[z].pFit);
-                           printf("Tamaño Particion %i \n", LecturaMBR.mbrPartition[z].pSize);*/
         }//fin de Recorrido de PArticiones
 
 
@@ -660,7 +651,7 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
                 sizeRestante+=LecturaMBR.mbrPartition[d].pSize;
             }
             espaciolibre = LecturaMBR.mbrSize-sizeRestante-sizeof(MasterBootRecord);
-            printf("Tamaño disponible para usar [%d]\n",espaciolibre);
+            printf("Tamaño disponible para usar %d\n",espaciolibre);
             int start;
 
             //conteo de particiones
@@ -669,55 +660,46 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
                 printf("%d\n",auxType);
                 if (auxType=='p'){
                     primarias++;
-                    //     estadoprimaria=1;
                 }else if (auxType=='e') {
                     extendidas++;
-                    //   estadoextendida=1;
-
                 } else if (auxType=='l') {
                     logicas=1;
-
-                }else {printf("Error en Type\n");}
-
+                }
             }
-            printf("ParticioLibres %d, ParticioPrima %d, ParticionesExt %d\n",primarias,extendidas,logicas);
+            printf("\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nParticiones Primarias %d\n Particiones Extendidas %d\n Particiones Logicas %d\n",primarias,extendidas,logicas);
 
             int cantidadpuesta = 0;
 
- //__________________________________________________________________________________________________________________________PARTICIÓN PRIMARIA
+//__________________________________________________________________________________________________________________________PARTICIÓN PRIMARIA
             if (strncasecmp(type, "p",1)==0){
                 printf("<<ENTRO A PARTICION PRIMARIA>>\n\n");
-                printf("///////////////////////////////\\\\\\\\\\\\\\\\\\\\\\\ %d\n", primarias);
                 if (primarias==4){
                     printf(">>ERROR: Ya hay cuatro particiones primarias creadas, no puede crear más.");
                 }else{
                     if(size<=espaciolibre){//verifica si el espacio disponible es suficiente
-                        printf("//////////////////////////////////////////////////////////////////// %d", primarias);
                         int p;
                         for ( p=0;p<4;p++) {
                             //busca las particiones
                             int sizze=LecturaMBR.mbrPartition[p].pSize;
                             if (sizze==0){
 
-                                LecturaMBR.mbrPartition[p].pStatus='A';
+                                LecturaMBR.mbrPartition[p].pStatus='1';
                                 LecturaMBR.mbrPartition[p].pType=*type;
                                 LecturaMBR.mbrPartition[p].pFit=*fit;
+                                LecturaMBR.mbrPartition[p].pSize=size;
+                                strcpy(LecturaMBR.mbrPartition[p].pName,name);
                                 int u;
                                 for ( u=0;u<4;u++){
                                     if (LecturaMBR.mbrPartition[u].pSize>0){
                                         cantidadpuesta=LecturaMBR.mbrPartition[u].pSize+cantidadpuesta;
                                     }else {printf("Particion vacia [%d]\n",u);}
-
                                 }
-
                                 start=sizeof(MasterBootRecord)+cantidadpuesta +1;
                                 LecturaMBR.mbrPartition[p].pStart=start;
-                                LecturaMBR.mbrPartition[p].pSize=espaciolibre;
-                                strcpy(LecturaMBR.mbrPartition[p].pName,name);
                                 printf(">>AVISO: Partición creada en la rut: %s\n",path);
                                 break;
                             }else
-                                printf(">>ERROR: No hay espacio disponible para crear partición.");
+                                printf(">>ERROR: No hay espacio disponible para crear partición.\n");
                         }
                         fseek(file2,0,SEEK_SET);
                         fwrite(&LecturaMBR,sizeof(MasterBootRecord),1,file2);
@@ -726,7 +708,191 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
                 }
 
             }//termina particion primaria
+
+            printf(">>AVISO::Datos de Particiones\n");
+            //obtener las particiones primarias
+            int z=0;
+            for(z=0;z<4;z++){
+                int k=0;
+                int l=0;
+                while(name[k]!=NULL){
+                    if(LecturaMBR.mbrPartition[z].pName[k]==name[k]){
+                        l++;
+                    }
+                    k++;
+                }
+                if(l==k && LecturaMBR.mbrPartition[z].pStatus!='0'){// si las coincidencias son iguales y el status 0
+                    equalname=1;
+                    printf("\nERROR: Coincidencia de nombres.  %i \n\n",equalname);
+                }
+
+                printf("Bit Inicial: %i \n",LecturaMBR.mbrPartition[z].pStart);
+                printf("Nombre: %s \n",LecturaMBR.mbrPartition[z].pName);
+                printf("Tipo Estado: %c \n",LecturaMBR.mbrPartition[z].pStatus);
+                printf("Tipo Particion: %c \n",LecturaMBR.mbrPartition[z].pType);
+                printf("---------------------------------------------------------\n");
+
+                if(LecturaMBR.mbrPartition[z].pType=='p'||LecturaMBR.mbrPartition[z].pType=='P'){//si el tipo es primaria
+                    primarias++;
+                }
+                if(LecturaMBR.mbrPartition[z].pType=='e'||LecturaMBR.mbrPartition[z].pType=='E'){//si el tipo es extendida
+                    extendidas++;
+                }
+                /* printf("Tipo De Ajuste: %c \n",LecturaMBR.mbrPartition[z].pFit);
+                               printf("Tamaño Particion %i \n", LecturaMBR.mbrPartition[z].pSize);*/
+            }//fin de Recorrido de Particiones
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~PARTICIÓN EXTENDIDA
+            if (strncasecmp(type, "e",1)==0){
+                printf("<<ENTRO A PARTICION EXTENDIDA>>\n\n");
+                if (extendidas==1){
+                    printf(">>ERROR: Ya existe una partición extendida, no puede crear más.");
+                }else if (primarias==4){
+                    printf(">>ERROR: Ya existen cuatro particiones creadas, no puede crear más.");
+
+                }else {
+                    if(size<=espaciolibre){//verifica si el espacio disponible es suficiente
+                        printf("////////////////////////si hay espacio disponible %d\n", extendidas);
+                        int p;
+                        for ( p=0;p<4;p++) {
+                            //busca las particiones
+                            int sizze=LecturaMBR.mbrPartition[p].pSize;
+                            if (sizze==0){
+
+                                LecturaMBR.mbrPartition[p].pStatus='1';
+                                LecturaMBR.mbrPartition[p].pType=*type;
+                                LecturaMBR.mbrPartition[p].pFit=*fit;
+                                LecturaMBR.mbrPartition[p].pSize=size;
+                                strcpy(LecturaMBR.mbrPartition[p].pName,name);
+                                int u;
+                                for ( u=0;u<4;u++){
+                                    if (LecturaMBR.mbrPartition[u].pSize>0){
+                                        cantidadpuesta=LecturaMBR.mbrPartition[u].pSize+cantidadpuesta;
+                                    }else {printf("Particion vacia [%d]\n",u);}
+                                }
+                                start=sizeof(MasterBootRecord)+cantidadpuesta +1;
+                                LecturaMBR.mbrPartition[p].pStart=start;
+
+                                ebr.ebrFit='\0';
+                                int x;
+                                for(x=0;x<15;x++){ebr.ebrName[x]='\0';}
+                                ebr.ebrNext=-1;
+                                ebr.ebrSize=0;
+                                ebr.ebrStart=start+sizeof(MasterBootRecord)+1;
+                                ebr.ebrStart=1;
+
+
+                                printf(">>AVISO: Partición creada en la rut: %s\n",path);
+                                break;
+                            }else
+                                printf(">>ERROR: No hay espacio disponible para crear partición.\n");
+                        }
+
+                        fseek(file2,0,SEEK_SET);
+                        fwrite(&LecturaMBR,sizeof(MasterBootRecord),1,file2);
+                        fseek(file2,sizeof(MasterBootRecord)+1,SEEK_SET);
+                        fwrite(&ebr,sizeof(ExtendedBootRecord),1,file2);
+                        fclose(file2);
+                    }
+                }
+
+            }//termina particion Extendida
+
+            printf(">>AVISO::Datos de Particiones\n");
+            //obtener las particiones
+
+            for(z=0;z<4;z++){
+                int k=0;
+                int l=0;
+                while(name[k]!=NULL){
+                    if(LecturaMBR.mbrPartition[z].pName[k]==name[k]){
+                        l++;
+                    }
+                    k++;
+                }
+                if(l==k && LecturaMBR.mbrPartition[z].pStatus!='0'){// si las coincidencias son iguales y el status 0
+                    equalname=1;
+                    printf("\nERROR: Coincidencia de nombres.  %i \n\n",equalname);
+                }
+
+                printf("Bit Inicial: %i \n",LecturaMBR.mbrPartition[z].pStart);
+                printf("Nombre: %s \n",LecturaMBR.mbrPartition[z].pName);
+                printf("Tipo Estado: %c \n",LecturaMBR.mbrPartition[z].pStatus);
+                printf("Tipo Particion: %c \n",LecturaMBR.mbrPartition[z].pType);
+                printf("Tipo De Ajuste: %c \n",LecturaMBR.mbrPartition[z].pFit);
+                printf("Tamaño Particion %i \n", LecturaMBR.mbrPartition[z].pSize);
+                printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+
+                if(LecturaMBR.mbrPartition[z].pType=='p'||LecturaMBR.mbrPartition[z].pType=='P'){//si el tipo es primaria
+
+                }
+                if(LecturaMBR.mbrPartition[z].pType=='e'||LecturaMBR.mbrPartition[z].pType=='E'){//si el tipo es extendida
+                    printf("~~~~~~~~~~~~~~~~~~~~~~~Extendidas\n");
+                    ExtendedBootRecord mostrar;
+                    fseek(file2,LecturaMBR.mbrPartition[z].pStart,SEEK_SET); //escribir el bit ebr inicial
+                    fread(&mostrar, sizeof(ExtendedBootRecord), 1, file2);
+                    printf("Inicio EBR: %i \n",mostrar.ebrStart);
+                    printf("Siguiente ebr: %i \n",mostrar.ebrNext);
+                    printf("Estado ebr: %c \n",mostrar.ebrStatus);
+                }
+
+            }//fin de Recorrido de Particiones
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~PARTICIÓN LOGICA
+            if (strncasecmp(type, "l",1)==0){
+                printf("<<ENTRO A PARTICION LOGICA>>\n\n");
+                if (extendidas==0){
+                    printf(">>ERROR: NO existe una partición extendida, no puede crear partición lógica.");
+                }else {
+                    if(size<=espaciolibre){//verifica si el espacio disponible es suficiente
+                        printf("////////////////////////si hay espacio disponible %d\n", logicas);
+                        int p;
+                        for ( p=0;p<4;p++) {
+                            //busca las particiones
+                            int sizze=LecturaMBR.mbrPartition[p].pSize;
+                            if (sizze==0){
+
+                                LecturaMBR.mbrPartition[p].pStatus='1';
+                                LecturaMBR.mbrPartition[p].pType=*type;
+                                LecturaMBR.mbrPartition[p].pFit=*fit;
+                                LecturaMBR.mbrPartition[p].pSize=size;
+                                strcpy(LecturaMBR.mbrPartition[p].pName,name);
+                                int u;
+                                for ( u=0;u<4;u++){
+                                    if (LecturaMBR.mbrPartition[u].pSize>0){
+                                        cantidadpuesta=LecturaMBR.mbrPartition[u].pSize+cantidadpuesta;
+                                    }else {printf("Particion vacia [%d]\n",u);}
+                                }
+                                start=sizeof(MasterBootRecord)+cantidadpuesta +1;
+                                LecturaMBR.mbrPartition[p].pStart=start;
+
+                                ebr.ebrFit='\0';
+                                int x;
+                                for(x=0;x<15;x++){ebr.ebrName[x]='\0';}
+                                ebr.ebrNext=-1;
+                                ebr.ebrSize=0;
+                                ebr.ebrStart=start+sizeof(MasterBootRecord)+1;
+                                ebr.ebrStart=1;
+
+
+                                printf(">>AVISO: Partición creada en la rut: %s\n",path);
+                                break;
+                            }else
+                                printf(">>ERROR: No hay espacio disponible para crear partición.\n");
+                        }
+
+                        fseek(file2,0,SEEK_SET);
+                        fwrite(&LecturaMBR,sizeof(MasterBootRecord),1,file2);
+                        fseek(file2,sizeof(MasterBootRecord)+1,SEEK_SET);
+                        fwrite(&ebr,sizeof(ExtendedBootRecord),1,file2);
+                        fclose(file2);
+                    }
+                }
+
+            }//termina particion Extendida
         }
+
+
+
     }
 
 }
@@ -740,7 +906,7 @@ int main()
     while (salida==0){
         printf("\n ***Ingresar Comando***\n");
         fgets(Comando,100,stdin);
-   //  strcpy(Comando,"mkdisk -size::7 -path::\"/home/mitchel/Escritorio/prueba/\" -name::\"Disco1.dsk\"");
+   // strcpy(Comando,"mkdisk -size::15 -path::\"/home/mitchel/Escritorio/prueba/\" -name::\"Disco1.dsk\"");
      //  strcpy(Comando,"fdisk -size::2 +unit::M -path::\"/home/mitchel/Escritorio/prueba/Disco1.dsk\" -name::\"Particion1\" +type::P");
         char caracter[1]="\n";
         char Resultante[100];
