@@ -3,7 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <time.h>
-
+#include <stdbool.h>
 char** str_split(char* a_str, const char a_delim);
 void automata(char Comando[300]);
 char SinComilla (char frase[100]);
@@ -12,6 +12,11 @@ void EliminarDisco(char path[100]);
 void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], char type[1], char fit[2]);
 void  EliminarParticion(char path[100], char name[100], char type[1]);
 void ejecutarexec(char path[50]);
+void inicializarmatriz();
+void  Umount(char id[5]);
+void  MostrarMontura();
+void  MontarParticion(char path[100], char name[20]);
+
 //*******************************************************************************************************************************
 //--------------------------------------------------------STRUCTS Y VARIBLES------------------------------------------------------
 //*******************************************************************************************************************************
@@ -23,11 +28,21 @@ typedef struct ComandoMKdisk{
     char name[20];
 }ComandoMKdisk;
 
+typedef struct ComandoMount{
+    char path[100];
+    char name[20];
+}ComandoMount;
+
+typedef struct Mount{
+    char nombre[50];
+    int pos;
+}Monturas;
+
 typedef struct ComandoFdisk{
     int size;
     char unit[2];
     char path[100];
-    char name[10];
+    char name[16];
     char type[2];
     char fit[3];
     char del[4];
@@ -60,9 +75,20 @@ typedef struct ExtendedBootRecord{
     unsigned int ebrNext;
 }ExtendedBootRecord;
 
-typedef struct clear{
-    char space[1024];
-}clear;
+typedef struct Montar{
+    char pathDisco[150];
+    char nameParticion[16];
+    char id[4];
+    bool disponible;
+}Montar;
+
+typedef struct Reporte{
+    char path[50];
+    char name[20];
+    char id[5];
+}Reporte;
+
+
 
 char Comando[1000];
 int salida=0;
@@ -85,8 +111,26 @@ int FperFit=0;
 int FperSize=0;
 //permisos para exec
 int ex =0;
+//permisos para mount
+int mountname=0;
+int mountpath=0;
+//permisos para reporte
+int reportpath=0;
+int reportname=0;
+int reportid=0;
 FILE *file;
 
+//matriz para montar
+Montar montar[26][150];
+
+void inicializarmatriz(){
+    int i,j;
+    for(i=0;i<26;i++){
+        for(j=0;j<149;j++){
+            montar[i][j].disponible=true;
+        }
+    }
+}
 
 //con esto hago el split de comando
 char** str_split(char* a_str, const char a_delim){
@@ -181,7 +225,6 @@ void automata(char Comando[300]){
 
                 int jadd;
                 for (jadd = (i+1); *(Token + jadd); jadd++){
-                    //printf("token=[%s]\n", *(Token + i));
                     if (strncasecmp((*(Token + jadd)), "-size", 4) == 0){//****SIZE
                         // int tam =Getint(*(Token+jadd));
                         int tam=*(Token+jadd);
@@ -243,8 +286,6 @@ void automata(char Comando[300]){
                         strcpy(MKDISK->name, Resultante);
                         DiscoAceptadoname=1;
                     }
-
-                    // printf("token = [%s] \n", *(Token + r));
                 }
                      /* printf("size -> %d \n", MKDISK->size);
                 printf("unit -> %s \n", &MKDISK->unit);
@@ -284,6 +325,145 @@ void automata(char Comando[300]){
                     }
                     EliminarDisco(RMDISK->path);
                 }
+            }
+
+//________________________________________________________________________________________________________________________MOUNT
+            if(strcasecmp((*(Token + i)), "mount") ==0 ){
+                ComandoMount * MOUNT = malloc(sizeof(ComandoMount));
+                int jadd;
+                for (jadd = (i+1); *(Token + jadd); jadd++){
+                    if (strncasecmp((*(Token + jadd)), "-path", 5) == 0){//****PATH
+                        DelDisco=1;
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        //printf("%s",spl);
+                        char caracter[1]="\"";
+                        char Resultante[100];
+                        int i = 0;
+                        int j = 0;
+                        while (spl[i] != '\0')
+                        {
+                            if (caracter[0] != spl[i])
+                            {
+                                Resultante[j] = spl[i];
+                                j++;
+                            }
+                            i++;
+                        }
+                        Resultante[j] = '\0';
+                        strcpy(MOUNT->path, Resultante);
+                        mountname=1;
+                    }else if (strncasecmp((*(Token + jadd)), "-name", 4) == 0){//****NAME
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        char caracter[1]="\"";
+                        char Resultante[100];
+                        int i = 0;
+                        int j = 0;
+                        while (spl[i] != '\0')
+                        {
+                            if (caracter[0] != spl[i])
+                            {
+                                Resultante[j] = spl[i];
+                                j++;
+                            }
+                            i++;
+                        }
+                        Resultante[j] = '\0';
+                        strcpy(MOUNT->name, Resultante);
+                        mountpath=1;
+                    }
+                }
+                if(mountname==1 && mountpath==1){
+                    MontarParticion(MOUNT->path,MOUNT->name);
+                    mountpath=0;
+                    mountname=0;
+                }else if(mountname==0 && mountpath==0){
+                    MostrarMontura();
+                }else
+                    printf(">>ERROR: Hace falta algun campo obligatorio");
+            }
+
+//________________________________________________________________________________________________________________________REPORTES
+            if(strcasecmp((*(Token + i)), "rep") ==0 ){
+                Reporte * report = malloc(sizeof(Reporte));
+                int jadd;
+                for (jadd = (i+1); *(Token + jadd); jadd++){
+                    if (strncasecmp((*(Token + jadd)), "-path", 5) == 0){//****PATH
+                        DelDisco=1;
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        //printf("%s",spl);
+                        char caracter[1]="\"";
+                        char Resultante[100];
+                        int i = 0;
+                        int j = 0;
+                        while (spl[i] != '\0')
+                        {
+                            if (caracter[0] != spl[i])
+                            {
+                                Resultante[j] = spl[i];
+                                j++;
+                            }
+                            i++;
+                        }
+                        Resultante[j] = '\0';
+                        strcpy(report->path, Resultante);
+                        reportname=1;
+                    }else if (strncasecmp((*(Token + jadd)), "-name", 4) == 0){//****NAME
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        char caracter[1]="\"";
+                        char Resultante[100];
+                        int i = 0;
+                        int j = 0;
+                        while (spl[i] != '\0')
+                        {
+                            if (caracter[0] != spl[i])
+                            {
+                                Resultante[j] = spl[i];
+                                j++;
+                            }
+                            i++;
+                        }
+                        Resultante[j] = '\0';
+                        strcpy(report->name, Resultante);
+                        reportpath=1;
+                    }else if (strncasecmp((*(Token + jadd)), "-id", 3) == 0){//****PATH
+                        DelDisco=1;
+                        char *spl;
+                        spl = strtok((*(Token + jadd)), "::");
+                        spl = strtok(NULL,"::");
+                        //printf("%s",spl);
+                        char caracter[1]="\"";
+                        char Resultante[100];
+                        int i = 0;
+                        int j = 0;
+                        while (spl[i] != '\0')
+                        {
+                            if (caracter[0] != spl[i])
+                            {
+                                Resultante[j] = spl[i];
+                                j++;
+                            }
+                            i++;
+                        }
+                        Resultante[j] = '\0';
+                        strcpy(report->id, Resultante);
+                        reportid=1;
+                    }
+                }
+                if(reportname==1 && reportpath==1 && reportid==1){
+                    CrearReporte(report->path,report->name,report->id);
+                    reportpath=0;
+                    reportid=0;
+                    reportname=0;
+                }else
+                    printf(">>ERROR: Hace falta algun campo obligatorio");
             }
 //________________________________________________________________________________________________________________________F-DISK
             if(strcasecmp((*(Token + i)), "fdisk") ==0 ){
@@ -395,6 +575,8 @@ void automata(char Comando[300]){
                     printf("Entro al add \n");
                 }else if((FperAdd==0 && FperDel==1)){//~~~~~~~~~~DELETE
                     printf("Entro al delete \n");
+                    FperDel=0;
+                    EliminarParticion(FDISK->path,FDISK->name,FDISK->del);
                 }else if(FperPath==1 && FperName==1 && FperSize==1){//~~~~~~~~~~CREAR PARTICION
                     CrearParticion(FDISK->size, FDISK->unit,FDISK->path,FDISK->name,FDISK->type,FDISK->fit);
                     printf("<<Salio de crear particion>> \n");
@@ -497,11 +679,6 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
         //crear el archivo binario
         char pathCompleta[100];
         strcpy(pathCompleta,strcat(path,name));
-
-
-
-
-
         file = fopen (pathCompleta, "w+b" );
         if (file!=NULL) {
             char SizeArch[3]="\0";
@@ -529,8 +706,6 @@ void CrearDisco(int tam, char unidad[1], char path[100], char name[100]){
             int x;
             for(x=0;x<15;x++){mbr.mbrPartition[i].pName[x]='\0';}
             }
-
-           // fwrite(SizeArch,sizeof(SizeArch),1,file);
             fseek(file,0,SEEK_SET);
             fwrite(&mbr,sizeof(MasterBootRecord),1,file);
             fclose ( file );
@@ -652,30 +827,51 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
         printf("Tamaño %i\n",LecturaMBR.mbrSize);
         printf("\n\n*****************************\n\n");
 
-        printf(">>AVISO::Datos de Particiones\n");
-        //obtener las particiones primarias
+
         int z=0;
         for(z=0;z<4;z++){
-            int k=0;
-            int l=0;
-            while(name[k]!=NULL){
-                if(LecturaMBR.mbrPartition[z].pName[k]==name[k]){
-                    l++;
-                }
-                k++;
+            if(strcasecmp(LecturaMBR.mbrPartition[z].pName,name)==0){
+                equalname=1;
             }
-            if(l==k && LecturaMBR.mbrPartition[z].pStatus!='0'){// si las coincidencias son iguales y el status 0
+        }
+
+
+        printf(">>AVISO::Datos de Particiones\n");
+        //obtener las particiones primarias
+
+                for(z=0;z<4;z++){
+                    int nom=0, nombre=0;
+                    while(name[nombre]!=NULL){
+                        if(LecturaMBR.mbrPartition[z].pName[nom]==name[nom]){
+                            nombre++;
+                        }
+                        nom++;
+                    }
+                    if(nombre==nom && LecturaMBR.mbrPartition[z].pStatus!='0'){
+                        equalname=1;
+                        printf("\nERROR: Coincidencia de nombres.  %i \n\n",equalname);
+                    }
+
+                    if(LecturaMBR.mbrPartition[z].pType=='p'||LecturaMBR.mbrPartition[z].pType=='P'){
+                    }
+                    if(LecturaMBR.mbrPartition[z].pType=='e'||LecturaMBR.mbrPartition[z].pType=='E'){
+                        extendidas++;
+                    }
+                }//fin de Recorrido de PArticiones
+       /* //obtener las particiones primarias
+        for(z=0;z<4;z++){
+            if(strcasecmp(LecturaMBR.mbrPartition[z].pName,name)==0 && LecturaMBR.mbrPartition[z].pStatus!='0'){
                 equalname=1;
                 printf("\nERROR: Coincidencia de nombres.  %i \n\n",equalname);
             }
 
-            if(LecturaMBR.mbrPartition[z].pType=='p'||LecturaMBR.mbrPartition[z].pType=='P'){//si el tipo es primaria
+            if(strcasecmp(LecturaMBR.mbrPartition[z].pType,'p')==0){
                 primarias++;
             }
-            if(LecturaMBR.mbrPartition[z].pType=='e'||LecturaMBR.mbrPartition[z].pType=='E'){//si el tipo es extendida
+            if(strcasecmp(LecturaMBR.mbrPartition[z].pType,'e')==0){
                 extendidas++;
             }
-        }//fin de Recorrido de PArticiones
+        }//fin de Recorrido de Particiones*/
 
 
 
@@ -706,7 +902,7 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
             }
             printf("\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nParticiones Primarias %d\n Particiones Extendidas %d\n Particiones Logicas %d\n",primarias,extendidas,logicas);
 
-            int cantidadpuesta = 0;
+            int asignado = 0;
 
 //__________________________________________________________________________________________________________________________PARTICIÓN PRIMARIA
             if (strncasecmp(type, "p",1)==0){
@@ -729,10 +925,11 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
                                 int u;
                                 for ( u=0;u<4;u++){
                                     if (LecturaMBR.mbrPartition[u].pSize>0){
-                                        cantidadpuesta=LecturaMBR.mbrPartition[u].pSize+cantidadpuesta;
-                                    }else {printf("Particion vacia [%d]\n",u);}
+                                        asignado=LecturaMBR.mbrPartition[u].pSize+asignado;
+                                    }else {
+                                        printf("Particion vacia\n");}
                                 }
-                                start=sizeof(MasterBootRecord)+cantidadpuesta +1;
+                                start=sizeof(MasterBootRecord)+asignado +1;
                                 LecturaMBR.mbrPartition[p].pStart=start;
                                 printf(">>AVISO: Partición creada en la rut: %s\n",path);
                                 break;
@@ -747,38 +944,7 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
 
             }//termina particion primaria
 
-            printf(">>AVISO::Datos de Particiones\n");
-            //obtener las particiones primarias
-            int z=0;
-            for(z=0;z<4;z++){
-                int k=0;
-                int l=0;
-                while(name[k]!=NULL){
-                    if(LecturaMBR.mbrPartition[z].pName[k]==name[k]){
-                        l++;
-                    }
-                    k++;
-                }
-                if(l==k && LecturaMBR.mbrPartition[z].pStatus!='0'){// si las coincidencias son iguales y el status 0
-                    equalname=1;
-                    printf("\nERROR: Coincidencia de nombres.  %i \n\n",equalname);
-                }
 
-                printf("Bit Inicial: %i \n",LecturaMBR.mbrPartition[z].pStart);
-                printf("Nombre: %s \n",LecturaMBR.mbrPartition[z].pName);
-                printf("Tipo Estado: %c \n",LecturaMBR.mbrPartition[z].pStatus);
-                printf("Tipo Particion: %c \n",LecturaMBR.mbrPartition[z].pType);
-                printf("---------------------------------------------------------\n");
-
-                if(LecturaMBR.mbrPartition[z].pType=='p'||LecturaMBR.mbrPartition[z].pType=='P'){//si el tipo es primaria
-                    primarias++;
-                }
-                if(LecturaMBR.mbrPartition[z].pType=='e'||LecturaMBR.mbrPartition[z].pType=='E'){//si el tipo es extendida
-                    extendidas++;
-                }
-                /* printf("Tipo De Ajuste: %c \n",LecturaMBR.mbrPartition[z].pFit);
-                               printf("Tamaño Particion %i \n", LecturaMBR.mbrPartition[z].pSize);*/
-            }//fin de Recorrido de Particiones
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~PARTICIÓN EXTENDIDA
             if (strncasecmp(type, "e",1)==0){
@@ -805,10 +971,11 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
                                 int u;
                                 for ( u=0;u<4;u++){
                                     if (LecturaMBR.mbrPartition[u].pSize>0){
-                                        cantidadpuesta=LecturaMBR.mbrPartition[u].pSize+cantidadpuesta;
-                                    }else {printf("Particion vacia [%d]\n",u);}
+                                        asignado=LecturaMBR.mbrPartition[u].pSize+asignado;
+                                    }else {
+                                        printf("Particion vacia \n");}
                                 }
-                                start=sizeof(MasterBootRecord)+cantidadpuesta +1;
+                                start=sizeof(MasterBootRecord)+asignado +1;
                                 LecturaMBR.mbrPartition[p].pStart=start;
 
                                 ebr.ebrFit='\0';
@@ -836,45 +1003,7 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
 
             }//termina particion Extendida
 
-            printf(">>AVISO::Datos de Particiones\n");
-            //obtener las particiones
 
-            for(z=0;z<4;z++){
-                int k=0;
-                int l=0;
-                while(name[k]!=NULL){
-                    if(LecturaMBR.mbrPartition[z].pName[k]==name[k]){
-                        l++;
-                    }
-                    k++;
-                }
-                if(l==k && LecturaMBR.mbrPartition[z].pStatus!='0'){// si las coincidencias son iguales y el status 0
-                    equalname=1;
-                    printf("\nERROR: Coincidencia de nombres.  %i \n\n",equalname);
-                }
-
-                printf("Bit Inicial: %i \n",LecturaMBR.mbrPartition[z].pStart);
-                printf("Nombre: %s \n",LecturaMBR.mbrPartition[z].pName);
-                printf("Tipo Estado: %c \n",LecturaMBR.mbrPartition[z].pStatus);
-                printf("Tipo Particion: %c \n",LecturaMBR.mbrPartition[z].pType);
-                printf("Tipo De Ajuste: %c \n",LecturaMBR.mbrPartition[z].pFit);
-                printf("Tamaño Particion %i \n", LecturaMBR.mbrPartition[z].pSize);
-                printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
-
-                if(LecturaMBR.mbrPartition[z].pType=='p'||LecturaMBR.mbrPartition[z].pType=='P'){//si el tipo es primaria
-
-                }
-                if(LecturaMBR.mbrPartition[z].pType=='e'||LecturaMBR.mbrPartition[z].pType=='E'){//si el tipo es extendida
-                    printf("~~~~~~~~~~~~~~~~~~~~~~~Extendidas\n");
-                    ExtendedBootRecord mostrar;
-                    fseek(file2,LecturaMBR.mbrPartition[z].pStart,SEEK_SET); //escribir el bit ebr inicial
-                    fread(&mostrar, sizeof(ExtendedBootRecord), 1, file2);
-                    printf("Inicio EBR: %i \n",mostrar.ebrStart);
-                    printf("Siguiente ebr: %i \n",mostrar.ebrNext);
-                    printf("Estado ebr: %c \n",mostrar.ebrStatus);
-                }
-
-            }//fin de Recorrido de Particiones
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~PARTICIÓN LOGICA
             if (strncasecmp(type, "l",1)==0){
                 printf("<<ENTRO A PARTICION LOGICA>>\n\n");
@@ -883,46 +1012,24 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
                 }else {
                     if(size<=espaciolibre){//verifica si el espacio disponible es suficiente
                         printf("////////////////////////si hay espacio disponible %d\n", logicas);
-                        int p;
-                        for ( p=0;p<4;p++) {
-                            //busca las particiones
-                            int sizze=LecturaMBR.mbrPartition[p].pSize;
-                            if (sizze==0){
 
-                                LecturaMBR.mbrPartition[p].pStatus='1';
-                                LecturaMBR.mbrPartition[p].pType=*type;
-                                LecturaMBR.mbrPartition[p].pFit=*fit;
-                                LecturaMBR.mbrPartition[p].pSize=size;
-                                strcpy(LecturaMBR.mbrPartition[p].pName,name);
-                                int u;
-                                for ( u=0;u<4;u++){
-                                    if (LecturaMBR.mbrPartition[u].pSize>0){
-                                        cantidadpuesta=LecturaMBR.mbrPartition[u].pSize+cantidadpuesta;
-                                    }else {printf("Particion vacia [%d]\n",u);}
-                                }
-                                start=sizeof(MasterBootRecord)+cantidadpuesta +1;
-                                LecturaMBR.mbrPartition[p].pStart=start;
+                        FILE *file3;
+                        file3=fopen(path,"rb+");
+                        ExtendedBootRecord lecturaEBR;
 
-                                ebr.ebrFit='\0';
-                                int x;
-                                for(x=0;x<15;x++){ebr.ebrName[x]='\0';}
-                                ebr.ebrNext=-1;
-                                ebr.ebrSize=0;
-                                ebr.ebrStart=start+sizeof(MasterBootRecord)+1;
-                                ebr.ebrStart=1;
+                        printf("\n >>Datos del EBR. \n");
+                        printf("Tamaño %d \n",lecturaEBR.ebrSize);
+                        printf("Tamaño EBR %d\n",sizeof(MasterBootRecord));
 
-
-                                printf(">>AVISO: Partición creada en la rut: %s\n",path);
-                                break;
-                            }else
-                                printf(">>ERROR: No hay espacio disponible para crear partición.\n");
-                        }
-
-                        fseek(file2,0,SEEK_SET);
-                        fwrite(&LecturaMBR,sizeof(MasterBootRecord),1,file2);
-                        fseek(file2,sizeof(MasterBootRecord)+1,SEEK_SET);
-                        fwrite(&ebr,sizeof(ExtendedBootRecord),1,file2);
-                        fclose(file2);
+                        lecturaEBR.ebrStart=1;
+                        lecturaEBR.ebrFit=*type;
+                        lecturaEBR.ebrStart=sizeof(MasterBootRecord)+1;
+                        lecturaEBR.ebrSize=size;
+                        lecturaEBR.ebrNext=sizeof(MasterBootRecord)+sizeof(ExtendedBootRecord)+lecturaEBR.ebrSize-1;
+                        strcpy(lecturaEBR.ebrName,name);
+                        fseek(file3,sizeof(MasterBootRecord)+sizeof(ExtendedBootRecord)+lecturaEBR.ebrSize+1,SEEK_SET);
+                        fwrite(&lecturaEBR,sizeof(MasterBootRecord),1,file3);
+                       fclose(file3);
                     }
                 }
 
@@ -936,23 +1043,459 @@ void  CrearParticion(int tam, char unidad[1], char path[100], char name[100], ch
 }
 
 //____________________________________________________________________________________________________________________ELIMINAR PARTICION
-void  EliminarParticion(char path[100], char name[100], char type[1]){
+void  EliminarParticion(char path[100], char name[100], char del[4]){
     printf("\n*****************************\n");
     printf(">>Dato para eliminar partición. \n");
     printf("path -> %s \n", path);
     printf("name -> %s \n", name);
-    printf("type -> %s \n", type);
+    printf("eliminacion -> %s \n", del);
     printf("*****************************\n\n");
 
-    FILE *delfile = fopen(path,"rb+");
-    if(delfile!=NULL){
-   //acciones para eliminar particion
+   /* char pathCompleta[100];
+    strcpy(pathCompleta,strcat(path,name));*/
+
+    int elimina=0;
+    FILE *delfile=fopen(path,"rb+"); // ABRO PARA LECTURA Y ESCRITURA
+
+    MasterBootRecord delmbr;
+
+    fread(&delmbr,sizeof(MasterBootRecord),1,delfile);
+    printf(">>AVISO: datos del MBR \n");
+    printf("Signature %d \n",delmbr.mbrSignature);
+    printf("Tamaño Total Del disco %d \n",delmbr.mbrSize);
+    printf("Tamaño MBr %d\n\n",sizeof(MasterBootRecord));
+int encontro=0;
+char compararname[100];
+
+    if (strncasecmp(del, "full",4)==0){
+         printf("\n >>ATENCION: Presione 3 para eliminar particion.\n");
+        scanf( "%d", &elimina );
+
+        if (elimina==3){
+            int p;
+            for (p=0;p<4;p++) {
+                strcpy(compararname, delmbr.mbrPartition[p].pName);
+                printf("%s \n", compararname);
+                if (strcasecmp(compararname,name)==0){
+                    int d;
+                    for (d=0;d<4;d++) {
+                        delmbr.mbrPartition[p].pStatus='\0';
+                        delmbr.mbrPartition[p].pType='\0';
+                        delmbr.mbrPartition[p].pFit='\0';
+                        delmbr.mbrPartition[p].pStart=0;
+                        delmbr.mbrPartition[p].pSize=0;
+                        int x;
+                        for(x=0;x<15;x++){
+                            delmbr.mbrPartition[p].pName[x]="\0";
+                        }
+                    }
+                    encontro=1;
+
+                }else{
+                    encontro=0;
+                }
+            }
+            if (encontro==0)
+                printf(">>ERROR: Particion no encontrada\n");
+            else if (encontro==1)
+                printf(">>AVISO: Particion eliminada");
+
+        }else{
+            printf(">>AVISO: Particion no eliminada.\n");
+        }
+
+
+    }else if (strncasecmp(del, "fast",4)==0){
+        printf("\n >>ATENCION: Presione 3 para eliminar particion. \n");
+        scanf( "%d", &elimina );
+        if (elimina==3){
+           int p;
+            for (p=0;p<4;p++) {
+                strcpy(compararname, delmbr.mbrPartition[p].pName);
+                printf("%s \n", compararname);
+                if (strcasecmp(compararname,name)==0){
+                    int d;
+                    for ( d=0;d<=3;d++) {
+                        delmbr.mbrPartition[p].pSize=0;
+                    }
+                    encontro=1;
+
+                }else{
+                    encontro = 0;
+                }
+            }
+
+            if (encontro==0)
+                printf(">>ERROR: Particion no encontrada\n");
+            else if (encontro==1)
+                printf(">>AVISO: Particion eliminada");
+
+        }else
+            printf(">>AVISO: Particion no eliminada.\n");
+
+
     }else
-        printf(">>ERROR: No existe ruta del disco.\n");
+        printf(">>ERROR: No coincide parametro de eliminacion\n");
+    //termina if de del
+
+    fseek(delfile,0,SEEK_SET);
+    fwrite(&delmbr,sizeof(MasterBootRecord),1,delfile);
+    close(delfile);
+}
+
+//____________________________________________________________________________________________________________________MONTAR PARTICION
+void  MontarParticion(char path[100], char name[20]){
+    printf("\n*****************************\n");
+    printf(">>Dato para crear Montura. \n");
+    printf("path -> %s \n", path);
+    printf("name -> %s \n", name);
+    printf("*****************************\n\n");
+
+    int equalname=0;
+    FILE *mountfile;
+    mountfile= fopen(path,"rb+");
+    char idAux[5];
+    char idaux[2];
+    char abc[27];
+    char num[2];
+    int filau, columnau;
+    strcpy(abc,"abcdefghijklmnñopqrstuvwxyz");
+    strcpy(idAux,"vd");
+    MasterBootRecord LecturaMBR;
+    fread(&LecturaMBR,sizeof(MasterBootRecord),1,mountfile);
+    if(mountfile!=NULL){
+        int z=0;
+        for(z=0;z<4;z++){
+            if(strcasecmp(LecturaMBR.mbrPartition[z].pName,name)==0){
+                equalname=1;
+            }
+        }//termina recorrido de mbr
+
+        if (equalname==0){
+            printf(">>ERROR: Particion no existe");
+        }else {
+            printf("<<ENTRO A MONTAR>>\n");
+            int fila,columna;
+            for (fila=1; fila<28;fila++){
+                for(columna=1;columna<151;columna++){
+                    if(strcasecmp(montar[fila][columna].pathDisco,path)==0){
+                        printf("ya ha montado el disco\n");
+                        filau=fila;
+                        fila=27;
+                        break;
+                    }
+                    if(strcasecmp(montar[fila][columna].nameParticion,name)==0){
+                        printf("ya existe la particion");
+                        fila=27;
+                        break;
+                    }else{
+                        filau=fila;
+                        columnau=columna;
+                      fila=27;
+                      break;
+                   }
+               }//for columna
+           }//for fila
+             strcpy(montar[filau][columnau].nameParticion,name);
+             strcpy(montar[filau][columnau].pathDisco,path);
+             idAux[2] = abc[filau-1];
+             columnau=columnau+1;
+             sprintf(num,"%d",columnau);
+             strcat(idAux,num);
+             printf("%s", idAux);
+             strcpy(montar[filau][columnau].id,idAux);
+             montar[filau][columnau].disponible=false;
+           printf(">>AVISO: Partición montada con Exito. \n");
+
+        }
+
+    }else{//el archivo existe
+        printf(">>ERROR: Disco No existe.\n");
+    }
+
+
+
+
+}
+
+//____________________________________________________________________________________________________________________MOSTRAR MONTURA
+void  MostrarMontura(){
+    int fila, columna;
+    printf(">>AVISO: Particiones montadas:\n");
+    for (fila=0; fila<26;fila++){
+        for(columna=0;columna<149;columna++){
+            if(montar[fila][columna].disponible==false){
+
+                printf(">>DISCO: %s \n", montar[fila][columna].pathDisco);
+                printf(">>Partición: %s \n", montar[fila][columna].nameParticion);
+                printf(">>ID: %s \n", montar[fila][columna].id);
+                printf("___________________________________________________\n");
+            }
+        }
+    }
+}
+
+//____________________________________________________________________________________________________________________QUITAR MONTURA
+void  Umount(char id[5]){
+
+}
+
+//____________________________________________________________________________________________________________________CREAR REPORTE
+void  CrearReporte(char path[50], char name[20], char id[5]){
+    printf("\n*****************************\n");
+    printf(">>Dato para crear Reporte. \n");
+    printf("Path -> %s \n", path);
+    printf("Name -> %s \n", name);
+    printf("ID -> %s \n", id);
+    printf("*****************************\n\n");
+
+    char pathdisk[50];
+    strcpy(pathdisk,"\0");
+    int fila, columna;
+    fila=obtenerValor(id[2]);
+    columna=(int)id[3]-48;
+    printf("%d ----\n",columna);
+
+
+    if(montar[fila][columna].disponible==true){
+        printf(">>ERROR: No existe partición montada en esa coordenada.\n");
+    }else{
+        strcpy(pathdisk,montar[fila][columna].pathDisco);
+        printf("%s \n",pathdisk);
+    }
+
+    /*char sys[10] = "mkdir -p ";
+    strcat(sys,path);
+    system(sys);
+
+    strcpy(sys,"rmdir ");
+    strcat(sys,path);
+    system(sys);*/
+    printf(">>Carpeta Creada en la dirección:  %s \n", path);
+
+
+    if(strncasecmp(name, "mbr", 3) ==0 ){
+        char nameDisk[75];
+        FILE *GrafoReporte = fopen("/home/mitchel/Escritorio/prueba/Reportes.dot","w+");
+
+        fprintf(GrafoReporte,"digraph grafo{\n");
+        fprintf(GrafoReporte,"node[shape = box];\n");
+        char MH[150];
+        strcpy(MH,pathdisk);
+        char* salto = strtok(MH,"/");
+        while(salto != NULL){
+            strcpy(nameDisk,salto);
+            salto = strtok(NULL,"/");
+        }
+
+
+
+        FILE *LecturaMBR = fopen(pathdisk,"rb+");
+        MasterBootRecord lecturambr;
+        fseek(LecturaMBR,0,SEEK_SET);
+        fread(&lecturambr,sizeof(MasterBootRecord),1,LecturaMBR);
+        fprintf(GrafoReporte,"\t  subgraph clusterPila1{ \n");
+        fprintf(GrafoReporte,"\t  label = \"REPORTE  \"; \n");
+        fprintf(GrafoReporte,"\t  node [shape = box] color = orange style=filled; \n");
+        fprintf(GrafoReporte,"\t  subgraph clusterLibrera{ \n");
+        fprintf(GrafoReporte,"label = \"%s\";\n",nameDisk);
+        fprintf(GrafoReporte,"labelloc = \"t\";\n");
+
+
+        fprintf(GrafoReporte,"\"Record\" [label = <<table border = \"1\" cellspacing = \"2\">\n");
+        fprintf(GrafoReporte,"<tr><td colspan = \"2\"><b> MBR: %s </b></td></tr>\n",nameDisk);
+        fprintf(GrafoReporte,"<tr><td><b>ATRIBUTO</b></td><td><b> VALOR </b></td></tr>\n");
+        fprintf(GrafoReporte,"<tr><td><b>mbrSIZE</b></td><td> %d </td></tr>\n",lecturambr.mbrSize);
+        fprintf(GrafoReporte,"<tr><td><b>mbrFECHA_CREACION</b></td><td> %s </td></tr>\n",lecturambr.mbrTimeCreation);
+        fprintf(GrafoReporte,"<tr><td><b>mbrSIGNATURE</b></td><td> %d </td></tr>\n",lecturambr.mbrSignature);
+        int i;
+        for( i = 0; i < 4; i++){
+            if(lecturambr.mbrPartition[i].pStatus==1){
+                fprintf(GrafoReporte,"<tr><td><b> STATUS %d</b></td><td>%c</td></tr>\n",(i+1),lecturambr.mbrPartition[i].pStatus);
+                fprintf(GrafoReporte,"<tr><td><b> TYPE %d</b></td><td><b>%c</b></td></tr>\n",(i+1),(toupper(lecturambr.mbrPartition[i].pType)));
+                fprintf(GrafoReporte,"<tr><td><b> FIT %d</b></td><td><b>%c</b></td></tr>\n",(i+1),(toupper(lecturambr.mbrPartition[i].pFit)));
+                fprintf(GrafoReporte,"<tr><td><b> START %d</b></td><td>%d</td></tr>\n",(i+1),lecturambr.mbrPartition[i].pStart);
+                fprintf(GrafoReporte,"<tr><td><b> SIZE %d</b></td><td>%d</td></tr>\n",(i+1),lecturambr.mbrPartition[i].pSize);
+                fprintf(GrafoReporte,"<tr><td><b> NAME %d</b></td><td>%s</td></tr>\n",(i+1),lecturambr.mbrPartition[i].pName);
+            }
+        }
+        fprintf(GrafoReporte,"</table>>];\n");
+        fprintf(GrafoReporte,"\t\t  label = \" <<MBR>> \"; \n");
+        fprintf(GrafoReporte,"\t  style = filled; \n");
+        fprintf(GrafoReporte,"\t  color = White; \n");
+        fprintf(GrafoReporte,"\t  } \n");
+        fprintf(GrafoReporte,"}");
+        fprintf(GrafoReporte,"}");
+        fflush(GrafoReporte);
+        fclose(LecturaMBR);
+        fclose(GrafoReporte);
+        printf("\n\nJLFKSJDFLJSALFJLSAKFJLKSAJFLKSAJFLSAJFLKSAJFLKSJALFSALF\n\n");
+
+
+        char sys[600];
+        system("dot -Tpng /home/mitchel/Escritorio/prueba/Reportes.dot -o /home/mitchel/Escritorio/Reportes/Reportes.png");
+        strcpy(sys,"");strcat(sys,"viewnior \"");
+        strcat(sys,"/home/mitchel/Escritorio/Reportes/Reportes.png");
+        strcat(sys,"\"&");
+        system(sys);
+        //  system(viewnior"/home/mitchel/Escritorio/Reportes/Reportes.png\"&");
+
+    }else if(strncasecmp(name, "disk", 4) ==0 ){
+        FILE * reader = fopen(pathdisk, "rb+");
+           fseek(reader, 0, SEEK_SET);
+
+           FILE * GrafoReporte = fopen("/home/mitchel/Escritorio/prueba/Reportes.dot", "wb+");
+           fseek(GrafoReporte, 0, SEEK_SET);
+
+           MasterBootRecord aux_mbr;
+
+           fread(&aux_mbr, sizeof(MasterBootRecord), 1, reader);
+
+           char flag_l = '0';
+
+           fseek(reader, sizeof(MasterBootRecord) + 1, SEEK_SET);
+           ExtendedBootRecord aux_ebr;
+
+           while (fread(&aux_ebr, sizeof(ExtendedBootRecord),1,reader)){
+               if (aux_ebr.ebrStart == '1'){
+                   flag_l = '1';
+                   break;
+               }
+           }
+
+
+           fprintf(GrafoReporte,"\t  subgraph clusterPila1{ \n");
+           fprintf(GrafoReporte,"\t  label = \"REPORTE  \"; \n");
+           fprintf(GrafoReporte,"\t  node [shape = box] color = orange style=filled; \n");
+           fprintf(GrafoReporte,"\t  subgraph clusterLibrera{ \n");
+           fprintf(GrafoReporte,"label = \"%s\";\n",pathdisk);
+           fprintf(GrafoReporte,"digraph{\nrankdir = TB;\nsubgraph clusterEncabezado{\nnode[shape = record, color = orange, height = 0.5];\nlabel=\"");
+           fprintf(GrafoReporte, "%s\";\n", pathdisk);
+           int contadorp=0;
+int i;
+           for (i = 0; i<4 ; i++){
+               if (aux_mbr.mbrPartition[i].pStatus == '0')
+               {
+                   fprintf(GrafoReporte,"node%d[label = \" Libre \"];\n", contadorp);
+                   contadorp++;
+               }
+               else if (aux_mbr.mbrPartition[i].pStatus == '1'){
+
+                   if (aux_mbr.mbrPartition[i].pType == 'p' || aux_mbr.mbrPartition[i].pType == 'P'){
+                       fprintf(GrafoReporte,"node%d[label = \"  %s \"];\n",contadorp, aux_mbr.mbrPartition[i].pName);
+                       contadorp++;
+                   }
+                   else if (aux_mbr.mbrPartition[i].pType == 'e' || aux_mbr.mbrPartition[i].pType == 'E'){
+                       if (flag_l == '1'){
+
+                           fprintf(GrafoReporte, "nodext[label=\"{%s | {", aux_mbr.mbrPartition[i].pName);
+
+                           fseek(reader, sizeof(MasterBootRecord) + 1, SEEK_SET);
+                           while(fread(&aux_ebr,sizeof(ExtendedBootRecord),1,reader)) {
+                               if (aux_ebr.ebrStatus == '1'){
+                                   if (aux_ebr.ebrNext!=-1){
+                                       fprintf(GrafoReporte,"%s | ", aux_ebr.ebrName);
+                                   }
+                                   else{
+                                       fprintf(GrafoReporte,"%s}}\"];\n", aux_ebr.ebrName);
+                                       break;
+                                   }
+                               }
+                           }
+                       }
+                       else{
+                           fprintf(GrafoReporte,"nodext[label=\"%s\"];\n", aux_mbr.mbrPartition[i].pName);
+                       }
+                   }
+               }
+           }
+           fprintf(GrafoReporte,"</table>>];\n");
+           fprintf(GrafoReporte,"\t\t  label = \" <<MBR>> \"; \n");
+           fprintf(GrafoReporte,"\t  style = filled; \n");
+           fprintf(GrafoReporte,"\t  color = orange; \n");
+           fprintf(GrafoReporte,"\t  } \n");
+fprintf(GrafoReporte,"\t  } \n");
+           fclose(GrafoReporte);
+
+char sys[100];
+           system("dot -Tpng /home/mitchel/Escritorio/prueba/Reportes.dot -o /home/mitchel/Escritorio/Reportes/Reportes.png");
+           strcpy(sys,"");strcat(sys,"viewnior \""); strcat(sys,"/home/mitchel/Escritorio/Reportes/Reportes.png");
+           strcat(sys,"\"&"); system(sys);
+
+           //INVOCANDO GRAPHVIZ
+          // system("dot -Tjpg /home/mitchel/Documentos/Discos/ReportemBR.txt -o /home/jjenano/Documentos/Discos/diagrama.jpg");
+           //ABRIENDO LA IMAGEN
+         //  system("xdg-open /home/jjenano/Documentos/Discos/diagrama.jpg &");
+    }
+
+
+
+
+}
+
+int obtenerValor(char id[1]){
+    printf("%c \n", id);
+    if (id=='a'){
+        return 1;
+    }else if (id=='b'){
+        return 2;
+    }else if (id=='b'){
+        return 3;
+    }else if (id=='c'){
+        return 4;
+    }else if (id=='d'){
+        return 5;
+    }else if (id=='e'){
+        return 6;
+    }else if (id=='f'){
+        return 7;
+    }else if (id=='g'){
+        return 8;
+    }else if (id=='h'){
+        return 9;
+    }else if (id=='i'){
+        return 10;
+    }else if (id=='j'){
+        return 11;
+    }else if (id=='k'){
+        return 12;
+    }else if (id=='l'){
+        return 13;
+    }else if (id=='m'){
+        return 14;
+    }else if (id=='n'){
+        return 15;
+    }else if (id=='o'){
+        return 16;
+    }else if (id=='p'){
+        return 17;
+    }else if (id=='q'){
+        return 18;
+    }else if (id=='r'){
+        return 19;
+    }else if (id=='s'){
+        return 20;
+    }else if (id=='t'){
+        return 21;
+    }else if (id=='u'){
+        return 22;
+    }else if (id=='v'){
+        return 23;
+    }else if (id=='w'){
+        return 24;
+    }else if (id=='x'){
+        return 25;
+    }else if (id=='y'){
+        return 26;
+    }else if (id=='z'){
+        return 27;
+    }
+
+    return 0;
 }
 
 //*******************************************************************************************************************************
-//---------------------------------------------------METODOS PARA EJECUTAR COMANDOS----------------------------------------------
+//----------------------------------------------------METODO PARA EJECUTAR COMANDOS----------------------------------------------
 //*******************************************************************************************************************************
 
 void ejecutarexec(char path[50]){
@@ -960,15 +1503,21 @@ void ejecutarexec(char path[50]){
     char comanditos[300];
     FILE *execfile = fopen(path,"r");
     if (execfile!=NULL){
+
+        //aca va el codigo para ejecutar
         while(feof(execfile)==0){
         fgets(comanditos,300,execfile);
             TokenC = str_split(comanditos, '\n');
             if(TokenC){
                 int i;
                 for (i = 0; *(TokenC + i); i++){
-                    printf("token=[%s]\n", *(TokenC + i));
-                    char com[100];
-                    automata(*(TokenC+i));
+                   // printf("Comando Reconocido=[%s]\n", *(TokenC + i));
+                    if(strncasecmp((*(TokenC + i)), "#",1) ==0 ){
+                        printf("\n\n\n%s \n", *(TokenC + i));
+                    }else{
+                        printf("\n\n\n%s \n", *(TokenC + i));
+                        automata(*(TokenC+i));
+                    }
                 }
             }
         }
@@ -985,11 +1534,14 @@ void ejecutarexec(char path[50]){
 int main()
 {
     while (salida==0){
+        inicializarmatriz();
         printf("\n ***Ingresar Comando***\n");
         fgets(Comando,100,stdin);
-   // strcpy(Comando,"mkdisk -size::15 -path::\"/home/mitchel/Escritorio/prueba/\" -name::\"Disco1.dsk\"");
-     //  strcpy(Comando,"fdisk -size::2 +unit::M -path::\"/home/mitchel/Escritorio/prueba/Disco1.dsk\" -name::\"Particion1\" +type::P");
-        strcpy(Comando,"exec -path::\"/home/mitchel/Escritorio/Comandos.sh\"");
+    //strcpy(Comando,"mkdisk -size::15 -path::\"/home/mitchel/Escritorio/prueba/\" -name::\"Disco1.dsk\"");
+       //strcpy(Comando,"fdisk -size::2 +unit::M -path::\"/home/mitchel/Escritorio/prueba/Disco1.dsk\" -name::\"Particion3\" +type::P");
+      //  strcpy(Comando,"mount -path::\"/home/mitchel/Escritorio/Disco1.dsk\" -name::\"part1\"");
+       strcpy(Comando,"exec -path::\"/home/mitchel/Escritorio/Comandos.sh\"");
+       // strcpy(Comando,"mount -name::\"Particion1P\" -path::\"/home/mitchel/Escritorio/prueba/Disco1.dsk\" ");
         char caracter[1]="\n";
         char Resultante[100];
         int i = 0;
